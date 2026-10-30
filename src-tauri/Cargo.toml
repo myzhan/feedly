@@ -1,0 +1,45 @@
+[package]
+name = "feedly"
+version = "0.1.0"
+description = "A cross-platform RSS reader built with Tauri"
+authors = ["myzhan"]
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "feedly_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = ["protocol-asset"] }
+tauri-plugin-opener = "2.7"
+tauri-plugin-dialog = "2.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+tokio = { version = "1.54", features = ["time", "sync", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "charset", "http2", "gzip", "brotli", "deflate", "stream"] }
+feed-rs = "3.0"
+rusqlite = { version = "0.40", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.35"
+chrono = { version = "0.4", features = ["serde"] }
+ammonia = "4.2"
+regex = "1"
+thiserror = "2"
+futures = "0.3"
+roxmltree = "0.21"
+sha2 = "0.10"
+readabilityrs = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.54", features = ["full"] }
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

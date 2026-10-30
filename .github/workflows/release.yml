@@ -1,0 +1,90 @@
+name: Publish Release
+
+# Build the desktop app for Windows, macOS and Linux (AppImage), create a git
+# tag from the app version and publish a GitHub Release with all artifacts.
+#
+# Trigger manually from the "Actions → Publish Release → Run workflow" page.
+# `tauri-action` reads the version from src-tauri/tauri.conf.json, creates the
+# tag `app-v<version>` (if missing) and a DRAFT release; every matrix job
+# uploads its platform artifacts to that same draft. Review, then publish.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & release (${{ matrix.platform }} ${{ matrix.args }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest # Apple Silicon
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest # Intel
+            args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04 # AppImage
+            args: ''
+          - platform: windows-latest # .msi + .exe (NSIS)
+            args: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies (Tauri)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Optional code signing (set the matching repo secrets to enable):
+      #   macOS : APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD,
+      #           APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+      #   Windows: TAURI_SIGNING_PRIVATE_KEY (+ password) for the Tauri updater
+      - name: Build & publish Tauri release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          tagName: app-v__VERSION__
+          releaseName: 'Feedly v__VERSION__'
+          releaseBody: |
+            Download the installer for your platform below.
+
+            - **macOS** — `.dmg` (Apple Silicon `aarch64` or Intel `x86_64`)
+            - **Windows** — `.exe` (NSIS installer) and `.msi`
+            - **Linux** — `.AppImage`
+
+            > Builds are unsigned, so macOS Gatekeeper / Windows SmartScreen may
+            > warn on first launch. Configure code signing to remove this.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
