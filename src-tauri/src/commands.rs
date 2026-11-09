@@ -240,15 +240,14 @@ pub async fn cache_images(
 /// Label of the child webview that renders an article's original page in place.
 const ORIGINAL_VIEW_LABEL: &str = "original-view";
 
-/// Corner radius (logical px) of the child webview, matching the card's
-/// `rounded-xl` in the UI.
-const ORIGINAL_VIEW_RADIUS: f64 = 12.0;
-
 /// Clips the child webview to rounded corners so the embedded page reads as a
 /// card inset in the pane instead of a raw rectangular window. HTML-level
 /// rounding cannot clip a native view, hence the platform layer.
 #[cfg(target_os = "macos")]
 fn round_webview_corners(view: &tauri::Webview) {
+    /// Corner radius (logical px), matching the card's `rounded-xl` in the UI.
+    const RADIUS: f64 = 12.0;
+
     let _ = view.with_webview(|wv| {
         use objc2::msg_send;
         use objc2::runtime::{AnyObject, Bool};
@@ -262,7 +261,7 @@ fn round_webview_corners(view: &tauri::Webview) {
             let layer: *mut AnyObject = msg_send![obj, layer];
             if !layer.is_null() {
                 let layer: &AnyObject = &*layer;
-                let _: () = msg_send![layer, setCornerRadius: ORIGINAL_VIEW_RADIUS];
+                let _: () = msg_send![layer, setCornerRadius: RADIUS];
                 let _: () = msg_send![layer, setMasksToBounds: Bool::YES];
             }
         }

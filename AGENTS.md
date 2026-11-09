@@ -44,6 +44,23 @@ cargo test                # 在 src-tauri/，Rust 单元测试
 
 改动后至少跑 `pnpm typecheck && pnpm build`；涉及 Rust 再跑 `cargo test` 与 `cargo clippy -D warnings`。
 
+## 提交前自检（与 CI 同款）
+
+`.github/workflows/ci.yml` 在 push/PR 到 `main` 时执行，任一失败都要再补一个 commit，所以**提交前本地全跑一遍**：
+
+```bash
+pnpm typecheck && pnpm build
+cd src-tauri
+cargo fmt --all --check                     # 不要只跑 cargo fmt，要确认无需再改动
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+- **跨平台告警本地看不见（最高频失败点）**：本地 macOS 跑 clippy 不会暴露 Linux/Windows 专属问题。凡是被 `#[cfg(target_os = "…")]` / `#[cfg(desktop)]` 隔离的代码，**只被它使用的 `const` / `fn` / 字段 / `use` 必须加上同样的 `cfg`**，否则其它平台的 CI 会以 `dead-code` 命中 `-D warnings` 而失败。平台专属的 `use` 也别放文件顶部。
+- 新增依赖要过 `cargo fmt` 与 clippy 的 `-D warnings`；`-D warnings` 下未使用的导入、未使用的变量都是错误。
+- 改了 `.github/workflows/*.yml` 要本地校验 YAML 语法（如 `npx js-yaml`）。
+- 本地无法验证的 GUI / 原生行为（子 WebView 坐标、圆角裁剪、焦点与快捷键）必须在交付说明里标注“待实机验证”，不得当作已通过。
+
 ## IPC 契约约定
 
 - **参数命名**：JS `invoke(cmd, { camelCaseKey })` ↔ Rust `snake_case`（Tauri 自动映射）。
@@ -63,7 +80,7 @@ cargo test                # 在 src-tauri/，Rust 单元测试
 | `r2d2_sqlite` | 0.35 | crate 名用下划线；pool builder 用 `.max_size(n)`。 |
 | `reqwest` | 0.13 | TLS feature 名是 `rustls`（非 `rustls-tls`）。 |
 | `ammonia` | 4.2 | 禁止对 `<a>` 手动 `add_tag_attributes("a", ["rel"])`（内部 panic）。默认白名单已足够，仅需 `.add_generic_attributes(&["class"])`。 |
-| `tauri` | 2.x | 启用 asset 协议必须同时加 `features=["protocol-asset"]`，否则 tauri-build 构建脚本按 config/feature 一致性校验失败。 |
+| `tauri` | 2.x | 启用 asset 协议必须同时加 `features=["protocol-asset"]`，否则 tauri-build 构建脚本按 config/feature 一致性校验失败。叠加子 WebView（`Window::add_child` / `WebviewBuilder`）还需 `"unstable"` feature；`Webview` 的 `set_position/set_size/close` 只受 `cfg(desktop)` 限制，不需要 unstable。 |
 
 Rust edition 2021，`rust-version = 1.80`。
 
@@ -83,7 +100,8 @@ Rust edition 2021，`rust-version = 1.80`。
 - **已读/星标用乐观更新**：直接 patch `['articles']` 缓存行（`patchArticles`），避免整表重取丢滚动位置。
 - **进度与失效靠后端事件驱动**：`events.ts` 订阅 `refresh-*` / `article-added` / `fulltext-ready`，收到即失效对应查询。
 - **正文相对 URL 必须在渲染层改写**：`ArticleView` 注入前用 `absolutizeUrls(contentHtml, article.link)` 绝对化；因 `upsert_articles` 是 `INSERT OR IGNORE`，后端解析改动对已入库旧数据无效，只能在前端处理。
-- **正文点击路由**：点 `<img>` → 应用内 `Lightbox` 预览；其它 `<a>` → `openExternal`。WebView 永不离开应用（桌面端无后退键）。
+- **正文点击路由**：点 `<img>` → 应用内 `Lightbox` 预览；带 `data-inline-original` 的裸网址（`linkifyBareUrls` 自动生成）→ 应用内卡片式原文视图；其它 `<a>` → `openExternal`。WebView 永不离开应用（桌面端无后退键）。
+- **内嵌原文是原生子 WebView，不是 iframe**：rect 由宿主元素的 `getBoundingClientRect()` 给出（CSS 逻辑像素，与窗口内容区同原点），并用 `ResizeObserver` + `window resize` 同步；圆角由 Rust 侧 objc2 设 `layer.cornerRadius`（HTML 样式裁不到原生视图），改卡片圆角要同步改该常量。内嵌页获得焦点期间应用全局快捷键失效，因此返回入口必须留在应用自身顶栏。
 - **正文图片按原分辨率显示**：`.article-body img` 用 `width:auto; max-width:100%` 覆盖 feed 内联表现属性，勿删 `width:auto`。
 - **颜色一律用语义 token**（`@theme` 的 `--color-canvas` 等）：护眼绿随主题覆盖该变量，改主题只动 token，勿在组件里硬编码 `dark:bg-*`。
 - 长列表行用 `.list-row`（`content-visibility: auto`）。键盘快捷键集中在 `App.tsx` 全局 `keydown`，输入框聚焦或有对话框打开时让位。
@@ -105,7 +123,7 @@ Rust edition 2021，`rust-version = 1.80`。
 
 - DB 访问、解析、净化、OPML、调度/条件请求逻辑都应有单测；用 `db::tests::test_pool()`（临时文件）。
 - 新增解析字段时补 RSS 2.0 + Atom 两个 fixture。
-- 提交前确认 `cargo test` 全绿、`cargo clippy -D warnings` 干净、`pnpm build` 通过。
+- 提交前按上文「提交前自检（与 CI 同款）」全部跑一遍。
 
 ## 不要做
 
