@@ -43,6 +43,85 @@ export function collectFeeds(nodes: FeedNode[]): FeedNode[] {
 
 const ABSOLUTE_RE = /^(https?:|data:|blob:|mailto:|tel:|cid:)/i;
 
+const URL_HARD_TRAIL = '.,;:!?\'"`。，；：！？…';
+
+function countChar(s: string, c: string): number {
+  let n = 0;
+  for (const ch of s) if (ch === c) n++;
+  return n;
+}
+
+/// Splits punctuation glued to the end of a bare URL so it stays plain text,
+/// while keeping brackets that legitimately belong to the URL (Wikipedia's
+/// `Foo_(bar)`).
+function splitTrailingPunct(raw: string): [string, string] {
+  let url = raw;
+  for (;;) {
+    const last = url[url.length - 1];
+    if (!last) break;
+    if (URL_HARD_TRAIL.includes(last)) {
+      url = url.slice(0, -1);
+      continue;
+    }
+    if (
+      (last === ')' && countChar(url, ')') > countChar(url, '(')) ||
+      (last === ']' && countChar(url, ']') > countChar(url, '[')) ||
+      (last === '}' && countChar(url, '}') > countChar(url, '{'))
+    ) {
+      url = url.slice(0, -1);
+      continue;
+    }
+    break;
+  }
+  return [url, raw.slice(url.length)];
+}
+
+/// Wraps bare-text http(s) URLs (e.g. feeds that ship "原文链接： https://…" as
+/// plain text) in anchors so they become clickable. Anchor gets
+/// `data-inline-original` so the reader opens it in the in-app original-page view
+/// instead of the system browser. Text inside existing <a>/<code>/<pre>/scripts
+/// is left untouched.
+export function linkifyBareUrls(html: string): string {
+  if (!html || !/https?:\/\//i.test(html)) return html;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const SKIP = new Set(['A', 'PRE', 'CODE', 'SCRIPT', 'STYLE']);
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = n as Text;
+    let skip = false;
+    for (let p = t.parentNode; p && p !== doc.body; p = p.parentNode) {
+      if (p.nodeType === 1 && SKIP.has((p as Element).tagName)) {
+        skip = true;
+        break;
+      }
+    }
+    if (!skip && /https?:\/\//i.test(t.data)) nodes.push(t);
+  }
+  for (const t of nodes) {
+    const text = t.data;
+    const re = /https?:\/\/[^\s<>"'`]+/gi;
+    const frag = doc.createDocumentFragment();
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text))) {
+      const [url, trail] = splitTrailingPunct(m[0]);
+      if (!url) continue;
+      if (m.index > last) frag.appendChild(doc.createTextNode(text.slice(last, m.index)));
+      const a = doc.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('data-inline-original', '');
+      a.textContent = url;
+      frag.appendChild(a);
+      if (trail) frag.appendChild(doc.createTextNode(trail));
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) frag.appendChild(doc.createTextNode(text.slice(last)));
+    t.parentNode?.replaceChild(frag, t);
+  }
+  return doc.body.innerHTML;
+}
+
 /// Rewrites relative / site-root URLs in sanitized article HTML into absolute
 /// ones resolved against the article's canonical link. Feed bodies often use
 /// paths like `/images/x.png` or `thumb.jpg`, which would otherwise resolve

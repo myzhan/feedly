@@ -1,5 +1,5 @@
 use rusqlite::Connection;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::db::{articles, feeds, settings};
 use crate::error::{AppError, AppResult};
@@ -235,4 +235,106 @@ pub async fn cache_images(
     urls: Vec<String>,
 ) -> Result<Vec<ImageRef>, String> {
     Ok(crate::image_cache::cache(&state, urls).await)
+}
+
+/// Label of the child webview that renders an article's original page in place.
+const ORIGINAL_VIEW_LABEL: &str = "original-view";
+
+/// Corner radius (logical px) of the child webview, matching the card's
+/// `rounded-xl` in the UI.
+const ORIGINAL_VIEW_RADIUS: f64 = 12.0;
+
+/// Clips the child webview to rounded corners so the embedded page reads as a
+/// card inset in the pane instead of a raw rectangular window. HTML-level
+/// rounding cannot clip a native view, hence the platform layer.
+#[cfg(target_os = "macos")]
+fn round_webview_corners(view: &tauri::Webview) {
+    let _ = view.with_webview(|wv| {
+        use objc2::msg_send;
+        use objc2::runtime::{AnyObject, Bool};
+        let ptr = wv.inner();
+        if ptr.is_null() {
+            return;
+        }
+        unsafe {
+            let obj: &AnyObject = &*(ptr as *const AnyObject);
+            let _: () = msg_send![obj, setWantsLayer: Bool::YES];
+            let layer: *mut AnyObject = msg_send![obj, layer];
+            if !layer.is_null() {
+                let layer: &AnyObject = &*layer;
+                let _: () = msg_send![layer, setCornerRadius: ORIGINAL_VIEW_RADIUS];
+                let _: () = msg_send![layer, setMasksToBounds: Bool::YES];
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn round_webview_corners(_view: &tauri::Webview) {}
+
+fn close_original_view_impl(app: &AppHandle) {
+    if let Some(view) = app.get_webview(ORIGINAL_VIEW_LABEL) {
+        let _ = view.close();
+    }
+}
+
+/// Covers the article content area with a native child webview showing `url`,
+/// so the original page renders in-app instead of opening the system browser.
+/// Any existing view is replaced so the page loads fresh at the top. `x/y/width/
+/// height` are the target area in logical (CSS) pixels within the main window.
+#[tauri::command]
+pub async fn open_original_view(
+    app: AppHandle,
+    url: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let parsed = url
+        .parse::<tauri::Url>()
+        .map_err(|e| format!("无效的原文地址：{e}"))?;
+    close_original_view_impl(&app);
+    let window = app
+        .get_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    let builder = tauri::webview::WebviewBuilder::new(
+        ORIGINAL_VIEW_LABEL,
+        tauri::WebviewUrl::External(parsed),
+    );
+    let view = window
+        .add_child(
+            builder,
+            tauri::LogicalPosition::new(x, y),
+            tauri::LogicalSize::new(width, height),
+        )
+        .map_err(|e| e.to_string())?;
+    round_webview_corners(&view);
+    Ok(())
+}
+
+/// Repositions/resizes the original-page view, e.g. when the window or panes
+/// change size. No-op when no view is open.
+#[tauri::command]
+pub async fn set_original_view_bounds(
+    app: AppHandle,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    if let Some(view) = app.get_webview(ORIGINAL_VIEW_LABEL) {
+        view.set_position(tauri::LogicalPosition::new(x, y))
+            .map_err(|e| e.to_string())?;
+        view.set_size(tauri::LogicalSize::new(width, height))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Closes the original-page view, restoring the extracted/feed body.
+#[tauri::command]
+pub async fn close_original_view(app: AppHandle) -> Result<(), String> {
+    close_original_view_impl(&app);
+    Ok(())
 }

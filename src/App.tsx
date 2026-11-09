@@ -469,6 +469,7 @@ export default function App() {
             />
           </div>
           <ArticleView
+            key={articleId ?? 'none'}
             article={articleQ.data ?? null}
             loading={articleQ.isLoading}
             onToggleStar={toggleStar}

@@ -47,6 +47,9 @@ pub fn run() {
             commands::update_settings,
             commands::prefetch_fulltext,
             commands::cache_images,
+            commands::open_original_view,
+            commands::set_original_view_bounds,
+            commands::close_original_view,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

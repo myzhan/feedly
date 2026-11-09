@@ -60,4 +60,20 @@ export const api = {
   // their absolute local paths.
   cacheImages: (urls: string[]) =>
     invoke<{ url: string; path: string }[]>('cache_images', { urls }),
+
+  // Renders an article's original page in a native child webview covering the
+  // given rectangle (logical px within the main window), on top of the reader.
+  openOriginalView: (url: string, rect: ViewRect) =>
+    invoke<void>('open_original_view', { url, ...rect }),
+  setOriginalViewBounds: (rect: ViewRect) =>
+    invoke<void>('set_original_view_bounds', { ...rect }),
+  closeOriginalView: () => invoke<void>('close_original_view'),
 };
+
+/// Logical-pixel rectangle for positioning the embedded original-page webview.
+export interface ViewRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}

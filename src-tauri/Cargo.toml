@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = ["protocol-asset"] }
+tauri = { version = "2.12", features = ["protocol-asset", "unstable"] }
 tauri-plugin-opener = "2.7"
 tauri-plugin-dialog = "2.8"
 serde = { version = "1", features = ["derive"] }
@@ -34,6 +34,10 @@ futures = "0.3"
 roxmltree = "0.21"
 sha2 = "0.10"
 readabilityrs = "0.1"
+
+# Used only to round the native child webview's corners on macOS.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
 
 [dev-dependencies]
 tokio = { version = "1.54", features = ["full"] }
