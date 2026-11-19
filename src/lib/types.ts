@@ -56,7 +56,7 @@ export interface ArticleFilter {
 
 export interface Settings {
   refreshIntervalMinutes: number;
-  theme: 'system' | 'light' | 'dark';
+  theme: 'light' | 'dark';
 }
 
 export interface ImportReport {

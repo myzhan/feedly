@@ -99,6 +99,10 @@ impl Default for ArticleFilter {
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub refresh_interval_minutes: i64,
+    /// UI theme: `"light"` or `"dark"`. We deliberately do not follow the
+    /// OS appearance — the same build must look identical on every platform.
+    /// A legacy `"system"` value may still be stored; the UI treats it as the
+    /// default (`dark`).
     pub theme: String,
 }
 
@@ -106,7 +110,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             refresh_interval_minutes: 30,
-            theme: "system".to_string(),
+            theme: "dark".to_string(),
         }
     }
 }

@@ -24,15 +24,12 @@
       }
     </style>
     <script>
-      // Apply theme class before first paint to avoid a background flash.
-      // The authoritative theme (light/dark/system) is re-applied from settings
-      // once they load; this only seeds the common system-preference case.
+      // Apply theme class before first paint to avoid a background flash. The
+      // theme is a pure in-app setting (light/dark) and never follows the OS,
+      // so anything that is not explicitly "light" — including a legacy
+      // "system" value or no value at all — seeds the default dark theme.
       try {
-        var t = localStorage.getItem('feedly-theme') || 'system';
-        var dark =
-          t === 'dark' ||
-          (t === 'system' &&
-            window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var dark = localStorage.getItem('feedly-theme') !== 'light';
         document.documentElement.classList.toggle('dark', dark);
       } catch (e) {}
     </script>

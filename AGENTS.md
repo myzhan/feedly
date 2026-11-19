@@ -104,6 +104,7 @@ Rust edition 2021，`rust-version = 1.80`。
 - **内嵌原文是原生子 WebView，不是 iframe**：rect 由宿主元素的 `getBoundingClientRect()` 给出（CSS 逻辑像素，与窗口内容区同原点），并用 `ResizeObserver` + `window resize` 同步；圆角由 Rust 侧 objc2 设 `layer.cornerRadius`（HTML 样式裁不到原生视图），改卡片圆角要同步改该常量。内嵌页获得焦点期间应用全局快捷键失效，因此返回入口必须留在应用自身顶栏。
 - **正文图片按原分辨率显示**：`.article-body img` 用 `width:auto; max-width:100%` 覆盖 feed 内联表现属性，勿删 `width:auto`。
 - **颜色一律用语义 token**（`@theme` 的 `--color-canvas` 等）：护眼绿随主题覆盖该变量，改主题只动 token，勿在组件里硬编码 `dark:bg-*`。
+- **主题不跟随系统外观**：只有 `light` / `dark`，默认 `dark`（`models.rs` 的 `Settings::default`）。判定统一写成“非 `light` 即 dark”（`App.tsx` / `SettingsDialog` / `index.html`），因此历史存过的 `system` 值自动归为默认。首绘前 `.dark` 由 `index.html` 按 `localStorage['feedly-theme']` 预置，App 主题 effect 写回该 key。背景色值在 `index.html` 内联 critical CSS 与 `src/index.css` 两处重复，改颜色必须同步两处，否则首帧颜色与最终不一致。
 - 长列表行用 `.list-row`（`content-visibility: auto`）。键盘快捷键集中在 `App.tsx` 全局 `keydown`，输入框聚焦或有对话框打开时让位。
 
 ## 阅读提速约定

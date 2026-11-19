@@ -119,23 +119,17 @@ export default function App() {
   }, []);
 
   // ---- theme --------------------------------------------------------------
-  const theme = settings?.theme ?? 'system';
+  // Deliberately never follows the OS appearance: one build must look the same
+  // on macOS and Linux. Anything that is not explicitly 'light' (including a
+  // legacy stored 'system') resolves to the default dark theme.
+  const theme = settings?.theme ?? 'dark';
   useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const apply = () => {
-      const dark = theme === 'dark' || (theme === 'system' && mq.matches);
-      document.documentElement.classList.toggle('dark', dark);
-    };
     try {
       localStorage.setItem('feedly-theme', theme);
     } catch {
       /* ignore */
     }
-    apply();
-    if (theme === 'system') {
-      mq.addEventListener('change', apply);
-      return () => mq.removeEventListener('change', apply);
-    }
+    document.documentElement.classList.toggle('dark', theme !== 'light');
   }, [theme]);
 
   // ---- derived lists ------------------------------------------------------

@@ -53,7 +53,7 @@ mod tests {
         let conn = pool.get().unwrap();
         let s = get_settings(&conn).unwrap();
         assert_eq!(s.refresh_interval_minutes, 30);
-        assert_eq!(s.theme, "system");
+        assert_eq!(s.theme, "dark");
 
         let updated = update_settings(
             &conn,
@@ -64,6 +64,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(updated.refresh_interval_minutes, 15);
-        assert_eq!(updated.theme, "system");
+        assert_eq!(updated.theme, "dark");
     }
 }

@@ -21,19 +21,19 @@ const INTERVALS = [
 ];
 
 const THEMES: { v: Settings['theme']; label: string }[] = [
-  { v: 'system', label: '跟随系统' },
   { v: 'light', label: '浅色' },
   { v: 'dark', label: '深色' },
 ];
 
 export default function SettingsDialog({ open, settings, onClose, onSave }: Props) {
   const [interval, setInterval] = useState(15);
-  const [theme, setTheme] = useState<Settings['theme']>('system');
+  const [theme, setTheme] = useState<Settings['theme']>('dark');
 
   useEffect(() => {
     if (!open || !settings) return;
     setInterval(settings.refreshIntervalMinutes);
-    setTheme(settings.theme);
+    // Normalise: a legacy stored 'system' maps to the default dark option.
+    setTheme(settings.theme === 'light' ? 'light' : 'dark');
   }, [open, settings]);
 
   return (
