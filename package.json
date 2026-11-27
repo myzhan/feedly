@@ -1,7 +1,7 @@
 {
   "name": "feedly",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "author": "myzhan",
   "packageManager": "pnpm@9.15.0",
