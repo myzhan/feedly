@@ -84,6 +84,13 @@ cargo test
 
 Rust edition 2021，`rust-version = 1.80`。
 
+## 发布与签名约定
+
+- 版本号三处同步：`package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`（`Cargo.lock` 由 cargo 自动刷新）。
+- **macOS 必须做 bundle 签名**：`tauri.conf.json > bundle > macOS > signingIdentity` 写 `"-"`（ad-hoc，无证书）。不签时产物只有链接器给 Mach-O 的临时签名、`Contents/_CodeSignature` 缺失，`codesign --verify --deep --strict` 报 `code has no resources but signature indicates they must be present`，用户从浏览器下载后直接被判“已损坏，无法打开”（v0.2.0 实踩过）。
+- 免证书只能做到“签名自洽”，`spctl` 仍 `rejected`（无 Developer ID、无公证），因此用户仍需在 系统设置 → 隐私与安全性 → 仍要打开，或 `xattr -dr com.apple.quarantine`。彻底免提示需 `APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` / `APPLE_SIGNING_IDENTITY`，加公证再加 `APPLE_ID` / `APPLE_PASSWORD` / `APPLE_TEAM_ID`（缺任一组 Tauri 会 `Warn skipping app notarization`）。
+- 发版是手动 dispatch `release.yml`；`releaseDraft: true` 意味产物先进草稿 release，需 `gh release edit <tag> --draft=false` 才公开，公开时才会创建 git tag。
+
 ## 存储 / Schema 约定
 
 - 迁移用 `PRAGMA user_version` 版本化，新增表/列走新的 `SCHEMA_Vn` 段。
